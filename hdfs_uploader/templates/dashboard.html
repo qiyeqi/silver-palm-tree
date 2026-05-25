@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amazon 数据分析可视化</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0c10;
+  --surface: #111318;
+  --border: #1f2535;
+  --accent: #00e5ff;
+  --text: #e8eaf6;
+  --muted: #5c6380;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Syne', sans-serif;
+  padding: 32px;
+  min-height: 100vh;
+}
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 48px;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+.header-left h1 {
+  font-size: 42px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent), #7c3aed);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 8px;
+}
+.header-left p {
+  color: var(--muted);
+  font-size: 15px;
+}
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+.btn {
+  padding: 12px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  text-decoration: none;
+  transition: all 0.2s;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: 'Syne', sans-serif;
+  font-weight: 600;
+}
+.btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn-primary {
+  background: linear-gradient(135deg, #7c3aed, var(--accent));
+  border: none;
+  color: #000;
+}
+.btn-primary:hover {
+  opacity: 0.9;
+  color: #000;
+}
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  max-width: 1800px;
+  margin: 0 auto 48px;
+}
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+}
+.chart-card.full {
+  grid-column: 1 / -1;
+}
+.chart-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 24px;
+  color: var(--accent);
+  letter-spacing: 0.5px;
+}
+.chart {
+  width: 100%;
+  height: 450px;
+}
+
+/* 数据表格 */
+.data-section {
+  max-width: 1800px;
+  margin: 48px auto;
+}
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+.section-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.table-container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 32px;
+  overflow-x: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+thead {
+  background: var(--border);
+}
+th {
+  padding: 16px 12px;
+  text-align: left;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+td {
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--border);
+}
+tr:hover td {
+  background: rgba(0,229,255,0.05);
+}
+.rating-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 12px;
+}
+.rating-high { background: rgba(0,230,118,0.2); color: #00e676; }
+.rating-mid { background: rgba(255,215,64,0.2); color: #ffd740; }
+.rating-low { background: rgba(255,23,68,0.2); color: #ff1744; }
+.pagination {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+.page-btn {
+  padding: 8px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+.page-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.page-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.page-btn.active {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+}
+
+/* 脚本上传模态框 */
+.modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.8);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+}
+.modal.show {
+  display: flex;
+}
+.modal-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 40px;
+  max-width: 600px;
+  width: 90%;
+}
+.modal-header {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 24px;
+}
+.upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  padding: 48px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 24px;
+}
+.upload-zone:hover {
+  border-color: var(--accent);
+  background: rgba(0,229,255,0.05);
+}
+.upload-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+.file-info {
+  margin: 16px 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+.output-log {
+  background: #0a0c10;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 12px;
+  color: #00e676;
+  margin-top: 16px;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 1200px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .chart-card.full {
+    grid-column: 1;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <h1>📊 Amazon 商品数据分析看板</h1>
+    <p>基于 Hive 分析 · MySQL 存储 · ECharts 可视化</p>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-primary" onclick="openScriptModal()">📜 上传 Hive 脚本</button>
+    <a href="/" class="btn">← 返回上传</a>
+  </div>
+</div>
+
+<!-- 图表区域 -->
+<div class="grid">
+  <div class="chart-card">
+    <div class="chart-title">💰 价格区间分布</div>
+    <div id="priceChart" class="chart"></div>
+  </div>
+  
+  <div class="chart-card">
+    <div class="chart-title">⭐ 评分分布趋势</div>
+    <div id="ratingChart" class="chart"></div>
+  </div>
+  
+  <div class="chart-card">
+    <div class="chart-title">💬 好评 vs 差评占比</div>
+    <div id="sentimentChart" class="chart"></div>
+  </div>
+  
+  <div class="chart-card">
+    <div class="chart-title">🏆 品牌 Top10 商品数量</div>
+    <div id="brandChart" class="chart"></div>
+  </div>
+</div>
+
+<!-- 商品详情表格 -->
+<div class="data-section">
+  <div class="section-header">
+    <div class="section-title">🛍️ 商品详情数据</div>
+  </div>
+  <div class="table-container">
+    <table id="productTable">
+      <thead>
+        <tr>
+          <th>商品ID</th>
+          <th>品牌</th>
+          <th>商品名称</th>
+          <th>评分</th>
+          <th>均价</th>
+          <th>排名</th>
+          <th>好评率</th>
+          <th>差评率</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted);">加载中...</td></tr>
+      </tbody>
+    </table>
+    <div class="pagination" id="pagination"></div>
+  </div>
+</div>
+
+<!-- 脚本上传模态框 -->
+<div class="modal" id="scriptModal">
+  <div class="modal-content">
+    <div class="modal-header">上传 Hive/Spark SQL 脚本</div>
+    <div class="upload-zone" onclick="document.getElementById('scriptInput').click()">
+      <div class="upload-icon">📄</div>
+      <div>点击选择 .sql 或 .hql 脚本文件</div>
+      <div class="file-info">支持 Hive SQL、Spark SQL 语法</div>
+    </div>
+    <input type="file" id="scriptInput" accept=".sql,.hql" style="display:none" onchange="handleScriptSelect(this)">
+    <div id="selectedFile" class="file-info"></div>
+    <div id="outputLog" class="output-log" style="display:none;"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeScriptModal()">取消</button>
+      <button class="btn btn-primary" id="executeBtn" onclick="executeScript()" disabled>执行脚本</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentPage = 1;
+let selectedScript = null;
+
+// 加载商品详情
+function loadProducts(page = 1) {
+  fetch(`/api/product_details?page=${page}&per_page=20`)
+    .then(r => r.json())
+    .then(d => {
+      if (!d.success) {
+        document.getElementById('tableBody').innerHTML = 
+          `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted);">加载失败: ${d.error}</td></tr>`;
+        return;
+      }
+      
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = d.data.map(item => {
+        const ratingClass = item.rating >= 4 ? 'rating-high' : 
+                           item.rating >= 2 ? 'rating-mid' : 'rating-low';
+        return `
+          <tr>
+            <td style="font-family:monospace;font-size:11px;color:var(--muted);">${item.shop_id || '-'}</td>
+            <td><strong>${item.brand || '-'}</strong></td>
+            <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.title || '-'}</td>
+            <td><span class="rating-badge ${ratingClass}">${item.rating.toFixed(1)}</span></td>
+            <td style="color:var(--accent);font-weight:700;">¥${item.price.toFixed(2)}</td>
+            <td>${item.rank || '-'}</td>
+            <td style="color:#00e676;">${(item.good_rate * 100).toFixed(1)}%</td>
+            <td style="color:#ff1744;">${(item.bad_rate * 100).toFixed(1)}%</td>
+          </tr>
+        `;
+      }).join('');
+      
+      renderPagination(d.total, d.page, d.per_page);
+    });
+}
+
+function renderPagination(total, page, perPage) {
+  const totalPages = Math.ceil(total / perPage);
+  const pagination = document.getElementById('pagination');
+  
+  let html = `
+    <button class="page-btn" onclick="loadProducts(${page - 1})" ${page === 1 ? 'disabled' : ''}>← 上一页</button>
+  `;
+  
+  for (let i = Math.max(1, page - 2); i <= Math.min(totalPages, page + 2); i++) {
+    html += `<button class="page-btn ${i === page ? 'active' : ''}" onclick="loadProducts(${i})">${i}</button>`;
+  }
+  
+  html += `
+    <button class="page-btn" onclick="loadProducts(${page + 1})" ${page === totalPages ? 'disabled' : ''}>下一页 →</button>
+  `;
+  
+  pagination.innerHTML = html;
+}
+
+// 脚本上传
+function openScriptModal() {
+  document.getElementById('scriptModal').classList.add('show');
+}
+
+function closeScriptModal() {
+  document.getElementById('scriptModal').classList.remove('show');
+  document.getElementById('scriptInput').value = '';
+  document.getElementById('selectedFile').innerHTML = '';
+  document.getElementById('outputLog').style.display = 'none';
+  document.getElementById('executeBtn').disabled = true;
+  selectedScript = null;
+}
+
+function handleScriptSelect(input) {
+  if (input.files.length > 0) {
+    selectedScript = input.files[0];
+    document.getElementById('selectedFile').innerHTML = 
+      `已选择: <strong>${selectedScript.name}</strong> (${(selectedScript.size / 1024).toFixed(2)} KB)`;
+    document.getElementById('executeBtn').disabled = false;
+  }
+}
+
+function executeScript() {
+  if (!selectedScript) return;
+  
+  const btn = document.getElementById('executeBtn');
+  btn.disabled = true;
+  btn.textContent = '执行中...';
+  
+  const outputLog = document.getElementById('outputLog');
+  outputLog.style.display = 'block';
+  outputLog.textContent = '正在执行脚本...\n';
+  
+  const formData = new FormData();
+  formData.append('script', selectedScript);
+  
+  fetch('/upload_script', {
+    method: 'POST',
+    body: formData
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.success) {
+      outputLog.textContent += '\n✅ 执行成功！\n\n' + d.output;
+      setTimeout(() => {
+        closeScriptModal();
+        location.reload();
+      }, 2000);
+    } else {
+      outputLog.textContent += '\n❌ 执行失败：\n' + (d.output || d.error);
+    }
+  })
+  .catch(err => {
+    outputLog.textContent += '\n❌ 网络错误：' + err.message;
+  })
+  .finally(() => {
+    btn.disabled = false;
+    btn.textContent = '执行脚本';
+  });
+}
+
+// 初始化图表
+fetch('/api/price_distribution')
+  .then(r => r.json())
+  .then(d => {
+    if (!d.success) return;
+    const chart = echarts.init(document.getElementById('priceChart'));
+    chart.setOption({
+      tooltip: { trigger: 'axis', backgroundColor: '#1f2535', borderColor: '#00e5ff', textStyle: { fontSize: 14 } },
+      grid: { left: '12%', right: '8%', top: '15%', bottom: '12%' },
+      xAxis: { type: 'category', data: d.data.map(i => i.range), axisLabel: { fontSize: 13, color: '#e8eaf6' }, axisLine: { lineStyle: { color: '#5c6380' } } },
+      yAxis: { type: 'value', axisLabel: { fontSize: 13, color: '#e8eaf6' }, axisLine: { lineStyle: { color: '#5c6380' } }, splitLine: { lineStyle: { color: '#1f2535' } } },
+      series: [{
+        type: 'bar', data: d.data.map(i => i.count), barWidth: '50%',
+        itemStyle: { borderRadius: [8, 8, 0, 0], color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: '#00e5ff' }, { offset: 1, color: '#7c3aed' }]) },
+        label: { show: true, position: 'top', color: '#e8eaf6', fontSize: 12 }
+      }]
+    });
+  });
+
+fetch('/api/rating_distribution')
+  .then(r => r.json())
+  .then(d => {
+    if (!d.success) return;
+    const chart = echarts.init(document.getElementById('ratingChart'));
+    chart.setOption({
+      tooltip: { trigger: 'axis', backgroundColor: '#1f2535', borderColor: '#00e5ff', textStyle: { fontSize: 14 } },
+      grid: { left: '12%', right: '8%', top: '15%', bottom: '12%' },
+      xAxis: { type: 'category', data: d.data.map(i => i.level + '分'), axisLabel: { fontSize: 13, color: '#e8eaf6' }, axisLine: { lineStyle: { color: '#5c6380' } } },
+      yAxis: { type: 'value', axisLabel: { fontSize: 13, color: '#e8eaf6' }, axisLine: { lineStyle: { color: '#5c6380' } }, splitLine: { lineStyle: { color: '#1f2535' } } },
+      series: [{
+        type: 'line', data: d.data.map(i => i.count), smooth: true, symbol: 'circle', symbolSize: 8,
+        areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: 'rgba(0,229,255,0.4)' }, { offset: 1, color: 'rgba(0,229,255,0)' }]) },
+        lineStyle: { color: '#00e5ff', width: 3 }
+      }]
+    });
+  });
+
+fetch('/api/review_sentiment')
+  .then(r => r.json())
+  .then(d => {
+    if (!d.success) return;
+    const chart = echarts.init(document.getElementById('sentimentChart'));
+    const nameMap = { 'five_star': '⭐⭐⭐⭐⭐ 五星', 'four_star': '⭐⭐⭐⭐ 四星', 'three_star': '⭐⭐⭐ 三星', 'two_star': '⭐⭐ 二星', 'one_star': '⭐ 一星' };
+    const colorMap = { 'five_star': '#00e676', 'four_star': '#00e5ff', 'three_star': '#ffd740', 'two_star': '#ff6d00', 'one_star': '#ff1744' };
+    chart.setOption({
+      tooltip: { trigger: 'item', backgroundColor: '#1f2535', borderColor: '#00e5ff', textStyle: { fontSize: 14 }, formatter: '{b}: {c}%' },
+      legend: { orient: 'vertical', right: '10%', top: 'center', textStyle: { color: '#e8eaf6', fontSize: 13 } },
+      series: [{
+        type: 'pie', radius: ['45%', '75%'], center: ['35%', '50%'],
+        data: d.data.map(i => ({ value: i.percentage.toFixed(2), name: nameMap[i.type] || i.type, itemStyle: { color: colorMap[i.type] } })),
+        itemStyle: { borderRadius: 10, borderColor: '#0a0c10', borderWidth: 3 },
+        label: { color: '#e8eaf6', fontSize: 13, formatter: '{b}\n{d}%' },
+        emphasis: { itemStyle: { shadowBlur: 20, shadowOffsetX: 0, shadowColor: 'rgba(0, 229, 255, 0.5)' } }
+      }]
+    });
+  });
+
+fetch('/api/brand_stats')
+  .then(r => r.json())
+  .then(d => {
+    if (!d.success) return;
+    const chart = echarts.init(document.getElementById('brandChart'));
+    chart.setOption({
+      tooltip: { trigger: 'axis', backgroundColor: '#1f2535', borderColor: '#00e5ff', textStyle: { fontSize: 14 }, axisPointer: { type: 'shadow' } },
+      grid: { left: '10%', right: '10%', top: '15%', bottom: '12%' },
+      xAxis: { type: 'value', axisLabel: { fontSize: 13, color: '#e8eaf6' }, axisLine: { lineStyle: { color: '#5c6380' } }, splitLine: { lineStyle: { color: '#1f2535' } } },
+      yAxis: { type: 'category', data: d.data.map((i, idx) => `TOP${idx+1}`), axisLabel: { fontSize: 14, color: '#e8eaf6', fontWeight: 600 }, axisLine: { lineStyle: { color: '#5c6380' } } },
+      series: [{
+        type: 'bar', data: d.data.map(i => i.count), barWidth: '60%',
+        itemStyle: { borderRadius: [0, 8, 8, 0], color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#7c3aed' }, { offset: 1, color: '#00e5ff' }]) },
+        label: { show: true, position: 'right', color: '#e8eaf6', fontSize: 13, fontWeight: 600 }
+      }]
+    });
+  });
+
+loadProducts(1);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数据清洗 · HDFS 上传平台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c10;
+    --surface: #111318;
+    --surface2: #181c24;
+    --border: #1f2535;
+    --accent: #00e5ff;
+    --accent2: #7c3aed;
+    --success: #00e676;
+    --warning: #ffd740;
+    --danger: #ff1744;
+    --text: #e8eaf6;
+    --muted: #5c6380;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative; z-index: 1;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    margin-bottom: 48px;
+    flex-wrap: wrap; gap: 16px;
+  }
+  .logo-group { display: flex; flex-direction: column; gap: 4px; }
+  .logo-label {
+    font-size: 11px; font-weight: 700; letter-spacing: .2em;
+    color: var(--accent); text-transform: uppercase;
+  }
+  h1 { font-size: clamp(24px, 4vw, 36px); font-weight: 800; line-height: 1.1; }
+  h1 span { color: var(--accent); }
+
+  .header-right {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .hdfs-badge {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--muted);
+    transition: background .3s;
+    flex-shrink: 0;
+  }
+  .status-dot.online { background: var(--success); box-shadow: 0 0 8px var(--success); }
+
+  .btn {
+    padding: 12px 20px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--sans);
+  }
+  .btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    transform: translateY(-1px);
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    border: none;
+    color: #000;
+  }
+  .btn-primary:hover {
+    opacity: 0.9;
+    color: #000;
+  }
+
+  .action-tabs {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 32px;
+    border-bottom: 2px solid var(--border);
+  }
+  .tab {
+    padding: 12px 24px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    position: relative;
+    font-family: var(--sans);
+    transition: color 0.2s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active {
+    color: var(--accent);
+  }
+  .tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--accent);
+  }
+
+  .tab-content {
+    display: none;
+  }
+  .tab-content.active {
+    display: block;
+  }
+
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+    padding: 64px 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .25s, background .25s, transform .15s;
+    position: relative;
+    overflow: hidden;
+  }
+  .drop-zone::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, rgba(0,229,255,.06), transparent 70%);
+    opacity: 0;
+    transition: opacity .3s;
+  }
+  .drop-zone:hover, .drop-zone.dragging {
+    border-color: var(--accent);
+    background: var(--surface2);
+    transform: translateY(-2px);
+  }
+  .drop-zone:hover::before, .drop-zone.dragging::before { opacity: 1; }
+
+  .drop-icon {
+    font-size: 48px; margin-bottom: 16px;
+    display: block;
+    filter: grayscale(1);
+    transition: filter .3s;
+  }
+  .drop-zone:hover .drop-icon { filter: grayscale(0); }
+
+  .drop-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+  .drop-sub { font-size: 13px; color: var(--muted); font-family: var(--mono); }
+  .drop-types { font-size: 11px; color: var(--accent); margin-top: 12px; letter-spacing: .05em; }
+
+  #file-input, #script-input { display: none; }
+
+  .file-card {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-top: 16px;
+    align-items: center; gap: 16px;
+    animation: fadeUp .3s ease;
+  }
+  .file-card.show { display: flex; }
+  .file-icon {
+    width: 44px; height: 44px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; flex-shrink: 0;
+  }
+  .file-info { flex: 1; min-width: 0; }
+  .file-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-size { font-size: 12px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
+
+  .field-group { margin-top: 20px; }
+  .field-label { font-size: 12px; font-weight: 700; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; }
+  .field-input {
+    width: 100%; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 16px;
+    color: var(--text); font-family: var(--mono); font-size: 13px;
+    outline: none; transition: border-color .2s;
+  }
+  .field-input:focus { border-color: var(--accent); }
+
+  .btn-upload {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; margin-top: 24px; padding: 16px;
+    background: linear-gradient(135deg, var(--accent2) 0%, var(--accent) 100%);
+    border: none; border-radius: 12px;
+    color: #000; font-family: var(--sans); font-size: 15px; font-weight: 800;
+    cursor: pointer; letter-spacing: .03em;
+    transition: opacity .2s, transform .15s, box-shadow .2s;
+    position: relative; overflow: hidden;
+  }
+  .btn-upload:hover:not(:disabled) {
+    opacity: .92; transform: translateY(-1px);
+    box-shadow: 0 8px 32px rgba(0,229,255,.25);
+  }
+  .btn-upload:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+  .btn-upload .spinner {
+    width: 18px; height: 18px; border: 2px solid rgba(0,0,0,.3);
+    border-top-color: #000; border-radius: 50%;
+    animation: spin .7s linear infinite; display: none;
+  }
+  .btn-upload.loading .spinner { display: block; }
+  .btn-upload.loading .btn-text { opacity: .6; }
+
+  .progress-wrap {
+    margin-top: 16px; display: none;
+    background: var(--surface2); border-radius: 8px; overflow: hidden;
+    height: 6px;
+  }
+  .progress-wrap.show { display: block; }
+  .progress-bar {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    transition: width .2s ease;
+    border-radius: 8px;
+  }
+
+  .result-panel {
+    margin-top: 32px; border-radius: 16px; overflow: hidden;
+    border: 1px solid var(--border);
+    animation: fadeUp .4s ease;
+    display: none;
+  }
+  .result-panel.show { display: block; }
+  .result-header {
+    padding: 16px 24px;
+    display: flex; align-items: center; gap: 12px; font-weight: 700;
+  }
+  .result-panel.success .result-header { background: rgba(0,230,118,.08); color: var(--success); }
+  .result-panel.error .result-header   { background: rgba(255,23,68,.08); color: var(--danger); }
+
+  .result-body { background: var(--surface); padding: 24px; }
+
+  .info-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    margin-bottom: 20px;
+  }
+  .info-cell { background: var(--surface2); border-radius: 10px; padding: 14px 16px; }
+  .info-cell .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+  .info-cell .value { font-family: var(--mono); font-size: 13px; word-break: break-all; }
+  .info-cell .value.accent { color: var(--accent); }
+  .info-cell.wide { grid-column: 1 / -1; }
+
+  .steps-title { font-size: 13px; font-weight: 700; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 12px; }
+  .step-item {
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 10px 14px;
+    background: var(--surface2); border-radius: 8px; margin-bottom: 6px;
+    font-family: var(--mono); font-size: 12px;
+  }
+  .step-icon { color: var(--success); }
+  .step-text { color: var(--text); }
+  .step-detail { color: var(--muted); margin-left: auto; }
+
+  .hdfs-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--accent); text-decoration: none; font-family: var(--mono); font-size: 12px;
+    border: 1px solid var(--accent);
+    border-radius: 6px; padding: 6px 12px; margin-top: 12px;
+    transition: background .2s;
+  }
+  .hdfs-link:hover { background: rgba(0,229,255,.08); }
+
+  .browser-section { margin-top: 48px; }
+  .section-title {
+    font-size: 13px; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .12em; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .section-title::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+  }
+  .browser-table {
+    width: 100%; border-collapse: collapse; font-size: 13px; font-family: var(--mono);
+  }
+  .browser-table th {
+    text-align: left; padding: 10px 16px;
+    color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+    border-bottom: 1px solid var(--border);
+  }
+  .browser-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .browser-table tr:last-child td { border-bottom: none; }
+  .browser-table tr:hover td { background: var(--surface2); }
+  .type-badge {
+    display: inline-flex; padding: 2px 8px; border-radius: 4px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    background: rgba(0,229,255,.1); color: var(--accent);
+  }
+  .empty-state { text-align: center; padding: 40px; color: var(--muted); font-size: 13px; }
+
+  .output-log {
+    background: #0a0c10;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    max-height: 300px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: #00e676;
+    margin-top: 16px;
+    white-space: pre-wrap;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @media (max-width: 600px) {
+    .info-grid { grid-template-columns: 1fr; }
+    .info-cell.wide { grid-column: 1; }
+    .header-right { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header>
+    <div class="logo-group">
+      <span class="logo-label">DataPipe v1.0</span>
+      <h1>数据清洗<span> · </span>HDFS<br>上传平台</h1>
+    </div>
+    <div class="header-right">
+      <a href="/dashboard" class="btn btn-primary">📊 数据可视化</a>
+      <div class="hdfs-badge">
+        <div class="status-dot" id="status-dot"></div>
+        <span id="status-text">{{ hdfs_host }}:{{ hdfs_port }}</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- 切换标签 -->
+  <div class="action-tabs">
+    <button class="tab active" onclick="switchTab('upload')">📂 上传数据文件</button>
+    <button class="tab" onclick="switchTab('script')">📜 执行 Hive 脚本</button>
+  </div>
+
+  <!-- 数据上传 Tab -->
+  <div id="upload-tab" class="tab-content active">
+    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <span class="drop-icon">📂</span>
+      <div class="drop-title">拖拽文件或点击上传</div>
+      <div class="drop-sub">File → Clean → HDFS</div>
+      <div class="drop-types">CSV · XLSX · XLS · JSON · TSV · PARQUET · TXT</div>
+      <input type="file" id="file-input" accept=".csv,.xlsx,.xls,.json,.tsv,.parquet,.txt">
+    </div>
+
+    <div class="file-card" id="file-card">
+      <div class="file-icon">📄</div>
+      <div class="file-info">
+        <div class="file-name" id="file-name-display"></div>
+        <div class="file-size" id="file-size-display"></div>
+      </div>
+    </div>
+
+    <div class="field-group">
+      <div class="field-label">HDFS 目标目录（可自定义）</div>
+      <input class="field-input" id="hdfs-path-input" type="text" value="{{ hdfs_base }}">
+    </div>
+
+    <button class="btn-upload" id="upload-btn" disabled onclick="startUpload()">
+      <div class="spinner"></div>
+      <span class="btn-text">选择文件后开始上传</span>
+    </button>
+
+    <div class="progress-wrap" id="progress-wrap">
+      <div class="progress-bar" id="progress-bar"></div>
+    </div>
+
+    <div class="result-panel" id="result-panel">
+      <div class="result-header" id="result-header"></div>
+      <div class="result-body" id="result-body"></div>
+    </div>
+  </div>
+
+  <!-- Hive 脚本 Tab -->
+  <div id="script-tab" class="tab-content">
+    <div class="drop-zone" id="script-drop-zone" onclick="document.getElementById('script-input').click()">
+      <span class="drop-icon">📜</span>
+      <div class="drop-title">上传 Hive / Spark SQL 脚本</div>
+      <div class="drop-sub">Script → Hive → Execute</div>
+      <div class="drop-types">SQL · HQL</div>
+      <input type="file" id="script-input" accept=".sql,.hql">
+    </div>
+
+    <div class="file-card" id="script-file-card">
+      <div class="file-icon">📄</div>
+      <div class="file-info">
+        <div class="file-name" id="script-name-display"></div>
+        <div class="file-size" id="script-size-display"></div>
+      </div>
+    </div>
+
+    <button class="btn-upload" id="script-btn" disabled onclick="executeScript()">
+      <div class="spinner"></div>
+      <span class="btn-text">选择脚本后开始执行</span>
+    </button>
+
+    <div class="progress-wrap" id="script-progress-wrap">
+      <div class="progress-bar" id="script-progress-bar"></div>
+    </div>
+
+    <div class="result-panel" id="script-result-panel">
+      <div class="result-header" id="script-result-header"></div>
+      <div class="result-body" id="script-result-body"></div>
+    </div>
+
+    <div id="script-output-log" class="output-log" style="display:none;"></div>
+  </div>
+
+  <!-- HDFS 文件浏览 -->
+  <div class="browser-section">
+    <div class="section-title">HDFS 文件列表</div>
+    <div id="file-browser"><div class="empty-state">正在连接 HDFS…</div></div>
+  </div>
+
+</div>
+
+<script>
+const dropZone   = document.getElementById('drop-zone');
+const fileInput  = document.getElementById('file-input');
+const fileCard   = document.getElementById('file-card');
+const uploadBtn  = document.getElementById('upload-btn');
+const resultPanel = document.getElementById('result-panel');
+
+const scriptDropZone = document.getElementById('script-drop-zone');
+const scriptInput = document.getElementById('script-input');
+const scriptFileCard = document.getElementById('script-file-card');
+const scriptBtn = document.getElementById('script-btn');
+const scriptResultPanel = document.getElementById('script-result-panel');
+
+let selectedFile = null;
+let selectedScript = null;
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  
+  if (tab === 'upload') {
+    document.querySelectorAll('.tab')[0].classList.add('active');
+    document.getElementById('upload-tab').classList.add('active');
+  } else {
+    document.querySelectorAll('.tab')[1].classList.add('active');
+    document.getElementById('script-tab').classList.add('active');
+  }
+}
+
+// ── 数据文件上传 ──────────────────────────────────
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragging'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('dragging');
+  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) setFile(fileInput.files[0]); });
+
+function setFile(f) {
+  selectedFile = f;
+  document.getElementById('file-name-display').textContent = f.name;
+  document.getElementById('file-size-display').textContent = formatBytes(f.size);
+  fileCard.classList.add('show');
+  uploadBtn.disabled = false;
+  uploadBtn.querySelector('.btn-text').textContent = '开始清洗并上传到 HDFS ↗';
+  resultPanel.classList.remove('show', 'success', 'error');
+}
+
+function formatBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  return (b/1048576).toFixed(2) + ' MB';
+}
+
+async function startUpload() {
+  if (!selectedFile) return;
+  uploadBtn.disabled = true;
+  uploadBtn.classList.add('loading');
+  uploadBtn.querySelector('.btn-text').textContent = '正在处理…';
+  const progressWrap = document.getElementById('progress-wrap');
+  const progressBar  = document.getElementById('progress-bar');
+  progressWrap.classList.add('show');
+  resultPanel.classList.remove('show', 'success', 'error');
+  let prog = 0;
+  const ticker = setInterval(() => {
+    prog = Math.min(prog + Math.random() * 8, 88);
+    progressBar.style.width = prog + '%';
+  }, 200);
+  try {
+    const fd = new FormData();
+    fd.append('file', selectedFile);
+    fd.append('hdfs_path', document.getElementById('hdfs-path-input').value);
+    const res = await fetch('/upload', { method: 'POST', body: fd });
+    const data = await res.json();
+    clearInterval(ticker);
+    progressBar.style.width = '100%';
+    setTimeout(() => progressWrap.classList.remove('show'), 800);
+    if (data.success) {
+      showSuccess(data);
+      loadFileBrowser(data.hdfs_path.split('/').slice(0,-1).join('/'));
+    } else {
+      showError(data.error);
+    }
+  } catch (err) {
+    clearInterval(ticker);
+    showError('网络错误: ' + err.message);
+  } finally {
+    uploadBtn.disabled = false;
+    uploadBtn.classList.remove('loading');
+    uploadBtn.querySelector('.btn-text').textContent = '再次上传';
+  }
+}
+
+function showSuccess(d) {
+  const r = d.clean_report;
+  resultPanel.className = 'result-panel show success';
+  document.getElementById('result-header').innerHTML = '✅ 清洗成功，已上传至 HDFS';
+  const steps = (r.steps || []).map(s => {
+    let detail = '';
+    if (s.removed !== undefined) detail = `移除 ${s.removed} 行`;
+    if (s.cols) detail = `${s.cols.length} 列`;
+    return `<div class="step-item">
+      <span class="step-icon">✓</span>
+      <span class="step-text">${s.action}</span>
+      <span class="step-detail">${detail}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('result-body').innerHTML = `
+    <div class="info-grid">
+      <div class="info-cell">
+        <div class="label">原始行数</div>
+        <div class="value">${r.original_rows.toLocaleString()} 行 × ${r.original_cols} 列</div>
+      </div>
+      <div class="info-cell">
+        <div class="label">清洗后行数</div>
+        <div class="value accent">${r.cleaned_rows.toLocaleString()} 行 × ${r.cleaned_cols} 列</div>
+      </div>
+      <div class="info-cell wide">
+        <div class="label">HDFS 路径</div>
+        <div class="value accent">${d.hdfs_path}</div>
+      </div>
+    </div>
+    <div class="steps-title">清洗步骤</div>
+    ${steps}
+    <a class="hdfs-link" href="${d.hdfs_url}" target="_blank">↗ 在 WebHDFS 中查看文件</a>
+  `;
+}
+
+function showError(msg) {
+  resultPanel.className = 'result-panel show error';
+  document.getElementById('result-header').innerHTML = '❌ 处理失败';
+  document.getElementById('result-body').innerHTML = `<div style="font-family:var(--mono);font-size:13px;color:var(--danger)">${msg}</div>`;
+}
+
+// ── Hive 脚本执行 ──────────────────────────────────
+scriptDropZone.addEventListener('dragover', e => { e.preventDefault(); scriptDropZone.classList.add('dragging'); });
+scriptDropZone.addEventListener('dragleave', () => scriptDropZone.classList.remove('dragging'));
+scriptDropZone.addEventListener('drop', e => {
+  e.preventDefault(); scriptDropZone.classList.remove('dragging');
+  if (e.dataTransfer.files[0]) setScript(e.dataTransfer.files[0]);
+});
+scriptInput.addEventListener('change', () => { if (scriptInput.files[0]) setScript(scriptInput.files[0]); });
+
+function setScript(f) {
+  selectedScript = f;
+  document.getElementById('script-name-display').textContent = f.name;
+  document.getElementById('script-size-display').textContent = formatBytes(f.size);
+  scriptFileCard.classList.add('show');
+  scriptBtn.disabled = false;
+  scriptBtn.querySelector('.btn-text').textContent = '开始执行 Hive 脚本 ⚡';
+  scriptResultPanel.classList.remove('show', 'success', 'error');
+  document.getElementById('script-output-log').style.display = 'none';
+}
+
+async function executeScript() {
+  if (!selectedScript) return;
+  scriptBtn.disabled = true;
+  scriptBtn.classList.add('loading');
+  scriptBtn.querySelector('.btn-text').textContent = '执行中...';
+  
+  const outputLog = document.getElementById('script-output-log');
+  outputLog.style.display = 'block';
+  outputLog.textContent = '正在执行脚本...\n';
+  
+  const progressWrap = document.getElementById('script-progress-wrap');
+  const progressBar = document.getElementById('script-progress-bar');
+  progressWrap.classList.add('show');
+  
+  let prog = 0;
+  const ticker = setInterval(() => {
+    prog = Math.min(prog + Math.random() * 5, 90);
+    progressBar.style.width = prog + '%';
+  }, 300);
+  
+  try {
+    const fd = new FormData();
+    fd.append('script', selectedScript);
+    const res = await fetch('/upload_script', { method: 'POST', body: fd });
+    const data = await res.json();
+    
+    clearInterval(ticker);
+    progressBar.style.width = '100%';
+    setTimeout(() => progressWrap.classList.remove('show'), 800);
+    
+    if (data.success) {
+      scriptResultPanel.className = 'result-panel show success';
+      document.getElementById('script-result-header').innerHTML = '✅ 脚本执行成功';
+      outputLog.textContent += '\n✅ 执行成功！\n\n' + data.output;
+      document.getElementById('script-result-body').innerHTML = `
+        <div class="info-cell">
+          <div class="label">执行结果</div>
+          <div class="value accent">脚本已成功执行，可前往可视化页面查看更新后的数据</div>
+        </div>
+      `;
+      setTimeout(() => {
+        window.location.href = '/dashboard';
+      }, 2000);
+    } else {
+      scriptResultPanel.className = 'result-panel show error';
+      document.getElementById('script-result-header').innerHTML = '❌ 脚本执行失败';
+      outputLog.textContent += '\n❌ 执行失败：\n' + (data.output || data.error);
+      document.getElementById('script-result-body').innerHTML = `
+        <div style="font-family:var(--mono);font-size:13px;color:var(--danger)">请检查脚本语法或查看下方日志</div>
+      `;
+    }
+  } catch (err) {
+    clearInterval(ticker);
+    outputLog.textContent += '\n❌ 网络错误：' + err.message;
+  } finally {
+    scriptBtn.disabled = false;
+    scriptBtn.classList.remove('loading');
+    scriptBtn.querySelector('.btn-text').textContent = '再次执行';
+  }
+}
+
+// ── HDFS Status ──────────────────────────────────
+async function checkHdfsStatus() {
+  const dot  = document.getElementById('status-dot');
+  const text = document.getElementById('status-text');
+  try {
+    const res  = await fetch('/hdfs/status');
+    const data = await res.json();
+    if (data.online) {
+      dot.classList.add('online'); dot.classList.remove('offline');
+      text.textContent = `${data.host}:${data.port} · 在线`;
+    } else {
+      dot.classList.add('offline'); dot.classList.remove('online');
+      text.textContent = '{{ hdfs_host }}:{{ hdfs_port }} · 离线';
+    }
+  } catch {
+    dot.classList.add('offline');
+    text.textContent = '{{ hdfs_host }}:{{ hdfs_port }} · 无法连接';
+  }
+}
+
+// ── HDFS File Browser ────────────────────────────
+async function loadFileBrowser(path) {
+  path = path || '{{ hdfs_base }}';
+  const container = document.getElementById('file-browser');
+  container.innerHTML = '<div class="empty-state">加载中…</div>';
+  try {
+    const res = await fetch(`/hdfs/list?path=${encodeURIComponent(path)}`);
+    const data = await res.json();
+    if (!data.success || !data.files.length) {
+      container.innerHTML = '<div class="empty-state">暂无文件 · ' + path + '</div>';
+      return;
+    }
+    const rows = data.files.map(f => `
+      <tr>
+        <td>${f.pathSuffix}</td>
+        <td><span class="type-badge">${f.type}</span></td>
+        <td>${formatBytes(f.length)}</td>
+        <td style="color:var(--muted)">${new Date(f.modificationTime).toLocaleString('zh-CN')}</td>
+        <td style="color:var(--muted)">${f.replication || '-'}</td>
+      </tr>`).join('');
+    container.innerHTML = `
+      <table class="browser-table">
+        <thead><tr>
+          <th>文件名</th><th>类型</th><th>大小</th><th>修改时间</th><th>副本数</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  } catch (e) {
+    container.innerHTML = `<div class="empty-state">无法加载文件列表: ${e.message}</div>`;
+  }
+}
+
+checkHdfsStatus();
+loadFileBrowser();
+setInterval(checkHdfsStatus, 30000);
+</script>
+</body>
+</html>
